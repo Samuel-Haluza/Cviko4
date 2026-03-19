@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Note;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Support\Facades\DB;
 
 class NoteController extends Controller
 {
@@ -13,10 +13,10 @@ class NoteController extends Controller
      */
     public function index()
     {
-        $notes = DB::table('notes')
-            ->whereNull('deleted_at')
-            ->orderBy('updated_at', 'desc')
+        $notes = Note::query()
+            ->orderByDesc('updated_at')
             ->get();
+
         return response()->json(['notes' => $notes], Response::HTTP_OK);
     }
 
@@ -25,16 +25,15 @@ class NoteController extends Controller
      */
     public function store(Request $request)
     {
-        DB::table('notes')->insert([
+        $note = Note::create([
             'user_id' => $request->user_id,
             'title' => $request->title,
             'body' => $request->body,
-            'created_at' => now(),
-            'updated_at' => now(),
         ]);
 
         return response()->json([
-            'message' => 'Poznámka bola úspešne vytvorená.'
+            'message' => 'Poznámka bola úspešne vytvorená.',
+            'note' => $note,
         ], Response::HTTP_CREATED);
     }
 
@@ -43,20 +42,13 @@ class NoteController extends Controller
      */
     public function show(string $id)
     {
-        $note = DB::table('notes')
-            ->whereNull('deleted_at')
-            ->where('id', $id)
-            ->first();
+        $note = Note::find($id);
 
         if (!$note) {
-            return response()->json([
-                'message' => 'Poznámka nenájdená.'
-            ], Response::HTTP_NOT_FOUND);
+            return response()->json(['message' => 'Poznámka nenájdená.'], Response::HTTP_NOT_FOUND);
         }
 
-        return response()->json([
-            'note' => $note
-        ], Response::HTTP_OK);
+        return response()->json(['note' => $note], Response::HTTP_OK);
     }
 
     /**
@@ -64,127 +56,211 @@ class NoteController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        $note = DB::table('notes')->where('id', $id)->first();
+        $note = Note::find($id);
 
         if (!$note) {
-            return response()->json([
-                'message' => 'Poznámka nenájdená.'
-            ], Response::HTTP_NOT_FOUND);
+            return response()->json(['message' => 'Poznámka nenájdená.'], Response::HTTP_NOT_FOUND);
         }
 
-        DB::table('notes')->where('id', $id)->update([
-            'title' => $request->title,
-            'body' => $request->body,
-            'updated_at' => now(),
+        $note->update([
+            'title' => $request->title ?? $note->title,
+            'body' => $request->body ?? $note->body,
+            'status' => $request->status ?? $note->status,
+            'is_pinned' => $request->is_pinned ?? $note->is_pinned,
         ]);
 
         return response()->json([
-            'message' => 'Poznámka bola úspešne aktualizovaná.'
+            'message' => 'Poznámka bola úspešne aktualizovaná.',
+            'note' => $note
         ], Response::HTTP_OK);
     }
 
     /**
      * Remove the specified resource from storage.
      */
-
-    public function destroy(string $id) // toto je soft delete
+    public function destroy(string $id)
     {
-        $note = DB::table('notes')
-            ->whereNull('deleted_at')
-            ->where('id', $id)
-            ->first();
+        $note = Note::find($id);
 
         if (!$note) {
             return response()->json(['message' => 'Poznámka nenájdená.'], Response::HTTP_NOT_FOUND);
         }
 
-        DB::table('notes')->where('id', $id)->update([
-            'deleted_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-//        DB::table('notes')->where('id', $id)->delete();
+        $note->delete(); // soft delete
 
         return response()->json(['message' => 'Poznámka bola úspešne odstránená.'], Response::HTTP_OK);
     }
 
     /**
-     * Get statistics of notes by status.
+     * ===== PIN/UNPIN ENDPOINTS =====
+     */
+
+    /**
+     * Pin a note.
+     * PATCH /api/notes/{id}/pin
+     */
+    public function pin(string $id)
+    {
+        $note = Note::find($id);
+
+        if (!$note) {
+            return response()->json(['message' => 'Poznámka nenájdená.'], Response::HTTP_NOT_FOUND);
+        }
+
+        $note->pin();
+
+        return response()->json([
+            'message' => 'Poznámka bola úspešne pripnutá.',
+            'note' => $note
+        ], Response::HTTP_OK);
+    }
+
+    /**
+     * Unpin a note.
+     * PATCH /api/notes/{id}/unpin
+     */
+    public function unpin(string $id)
+    {
+        $note = Note::find($id);
+
+        if (!$note) {
+            return response()->json(['message' => 'Poznámka nenájdená.'], Response::HTTP_NOT_FOUND);
+        }
+
+        $note->unpin();
+
+        return response()->json([
+            'message' => 'Poznámka bola úspešne odopnutá.',
+            'note' => $note
+        ], Response::HTTP_OK);
+    }
+
+    /**
+     * Toggle pin status.
+     * PATCH /api/notes/{id}/toggle-pin
+     */
+    public function togglePin(string $id)
+    {
+        $note = Note::find($id);
+
+        if (!$note) {
+            return response()->json(['message' => 'Poznámka nenájdená.'], Response::HTTP_NOT_FOUND);
+        }
+
+        $note->togglePin();
+
+        return response()->json([
+            'message' => 'Stav pripnutia poznámky bol zmenený. is_pinned: ' . ($note->is_pinned ? 'true' : 'false'),
+            'note' => $note
+        ], Response::HTTP_OK);
+    }
+
+    /**
+     * ===== STATUS CHANGE ENDPOINTS =====
+     */
+
+    /**
+     * Publish a note.
+     * PATCH /api/notes/{id}/publish
+     */
+    public function publish(string $id)
+    {
+        $note = Note::find($id);
+
+        if (!$note) {
+            return response()->json(['message' => 'Poznámka nenájdená.'], Response::HTTP_NOT_FOUND);
+        }
+
+        $note->publish();
+
+        return response()->json([
+            'message' => 'Poznámka bola úspešne publikovaná.',
+            'note' => $note
+        ], Response::HTTP_OK);
+    }
+
+    /**
+     * Archive a note.
+     * PATCH /api/notes/{id}/archive
+     */
+    public function archive(string $id)
+    {
+        $note = Note::find($id);
+
+        if (!$note) {
+            return response()->json(['message' => 'Poznámka nenájdená.'], Response::HTTP_NOT_FOUND);
+        }
+
+        $note->archive();
+
+        return response()->json([
+            'message' => 'Poznámka bola úspešne archivovaná.',
+            'note' => $note
+        ], Response::HTTP_OK);
+    }
+
+    /**
+     * Set note to draft.
+     * PATCH /api/notes/{id}/draft
+     */
+    public function draft(string $id)
+    {
+        $note = Note::find($id);
+
+        if (!$note) {
+            return response()->json(['message' => 'Poznámka nenájdená.'], Response::HTTP_NOT_FOUND);
+        }
+
+        $note->draft();
+
+        return response()->json([
+            'message' => 'Poznámka bola úspešne prevedená na koncept.',
+            'note' => $note
+        ], Response::HTTP_OK);
+    }
+
+    /**
+     * ===== EXISTING CUSTOM ENDPOINTS =====
+     */
+
+    /**
+     * Get statistics by status.
      * GET /api/notes/stats/status
      */
     public function statsByStatus()
     {
-        $stats = DB::table('notes')
-            ->whereNull('deleted_at')
-            ->select('status', DB::raw('COUNT(*) as count'))
-            ->groupBy('status')
-            ->get();
+        $stats = Note::getStatsByStatus();
 
-        return response()->json([
-            'stats' => $stats
-        ], Response::HTTP_OK);
+        return response()->json(['stats' => $stats], Response::HTTP_OK);
     }
 
     /**
-     * Archive old draft notes.
+     * Archive old drafts (older than 30 days).
      * PATCH /api/notes/actions/archive-old-drafts
      */
     public function archiveOldDrafts()
     {
-        $thirtyDaysAgo = now()->subDays(30);
-
-        $updated = DB::table('notes')
-            ->where('status', 'draft')
-            ->where('updated_at', '<', $thirtyDaysAgo)
-            ->whereNull('deleted_at')
-            ->update([
-                'status' => 'archived',
-                'updated_at' => now(),
-            ]);
+        $affected = Note::archiveOldDrafts();
 
         return response()->json([
-            'message' => 'Staré poznámky boli archivované.',
-            'archived_count' => $updated
-        ], Response::HTTP_OK);
+            'message' => 'Staré koncepty boli archivované.',
+            'affected_rows' => $affected,
+        ]);
     }
 
     /**
-     * Get notes with categories for a specific user.
-     * GET /api/users/{user}/notes
+     * Get user notes with categories.
+     * GET /api/users/{userId}/notes
      */
-    public function userNotesWithCategories(string $user)
+    public function userNotesWithCategories(string $userId)
     {
-        $notes = DB::table('notes')
-            ->where('user_id', $user)
-            ->whereNull('deleted_at')
-            ->orderBy('is_pinned', 'desc')
-            ->orderBy('updated_at', 'desc')
-            ->get();
+        $notes = Note::getUserNotesWithCategories($userId);
 
-        if ($notes->isEmpty()) {
-            return response()->json([
-                'message' => 'Používateľ nemá žiadne poznámky.'
-            ], Response::HTTP_NOT_FOUND);
-        }
-
-        // Enrich notes with categories
-        $notesWithCategories = $notes->map(function ($note) {
-            $categories = DB::table('categories')
-                ->join('note_category', 'categories.id', '=', 'note_category.category_id')
-                ->where('note_category.note_id', $note->id)
-                ->select('categories.id', 'categories.name')
-                ->get();
-
-            return (array)$note + ['categories' => $categories];
-        });
-
-        return response()->json([
-            'notes' => $notesWithCategories
-        ], Response::HTTP_OK);
+        return response()->json(['notes' => $notes], Response::HTTP_OK);
     }
 
     /**
-     * Search notes by title or body.
+     * Search notes.
      * GET /api/notes-actions/search?q=search_term
      */
     public function search(Request $request)
@@ -197,12 +273,7 @@ class NoteController extends Controller
             ], Response::HTTP_BAD_REQUEST);
         }
 
-        $notes = DB::table('notes')
-            ->whereNull('deleted_at')
-            ->where('title', 'LIKE', '%' . $query . '%')
-            ->orWhere('body', 'LIKE', '%' . $query . '%')
-            ->orderBy('updated_at', 'desc')
-            ->get();
+        $notes = Note::search($query);
 
         return response()->json([
             'search_query' => $query,
@@ -217,14 +288,11 @@ class NoteController extends Controller
      */
     public function getPinnedNotes()
     {
-        $notes = DB::table('notes')
-            ->where('is_pinned', true)
-            ->whereNull('deleted_at')
-            ->orderBy('updated_at', 'desc')
-            ->get();
+        $notes = Note::getPinned();
 
         return response()->json([
-            'notes' => $notes
+            'notes' => $notes,
+            'total' => count($notes)
         ], Response::HTTP_OK);
     }
 
@@ -234,26 +302,15 @@ class NoteController extends Controller
      */
     public function getNotesByStatus(Request $request)
     {
-        $status = $request->query('status');
+        $status = $request->query('status', 'published');
 
-        if (!$status) {
+        if (!in_array($status, ['draft', 'archived', 'published'])) {
             return response()->json([
-                'message' => 'Parameter "status" je povinný.'
+                'message' => 'Neplatný status. Povolené hodnoty: draft, archived, published'
             ], Response::HTTP_BAD_REQUEST);
         }
 
-        $validStatuses = ['draft', 'published', 'archived'];
-        if (!in_array($status, $validStatuses)) {
-            return response()->json([
-                'message' => 'Neplatný status. Povolené: ' . implode(', ', $validStatuses)
-            ], Response::HTTP_BAD_REQUEST);
-        }
-
-        $notes = DB::table('notes')
-            ->where('status', $status)
-            ->whereNull('deleted_at')
-            ->orderBy('updated_at', 'desc')
-            ->get();
+        $notes = Note::getByStatus($status);
 
         return response()->json([
             'status' => $status,
@@ -261,5 +318,4 @@ class NoteController extends Controller
             'total' => count($notes)
         ], Response::HTTP_OK);
     }
-
 }

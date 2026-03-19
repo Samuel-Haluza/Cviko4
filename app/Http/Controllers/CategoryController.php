@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Category;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Support\Facades\DB;
 
 class CategoryController extends Controller
 {
@@ -14,13 +14,11 @@ class CategoryController extends Controller
      */
     public function index()
     {
-        $categories = DB::table('categories')
-            ->orderBy('name', 'asc')
-            ->get();
+        $categories = Category::getAllOrderedByName();
 
         return response()->json([
             'categories' => $categories,
-            'total' => count($categories)
+            'total' => $categories->count()
         ], Response::HTTP_OK);
     }
 
@@ -38,25 +36,17 @@ class CategoryController extends Controller
         }
 
         // Check if category already exists
-        $exists = DB::table('categories')
-            ->where('name', $request->name)
-            ->exists();
-
-        if ($exists) {
+        if (Category::nameExists($request->name)) {
             return response()->json([
                 'message' => 'Kategória s týmto menom už existuje.'
             ], Response::HTTP_CONFLICT);
         }
 
-        // Insert new category
-        $id = DB::table('categories')->insertGetId([
+        // Create new category
+        $category = Category::create([
             'name' => $request->name,
-            'created_at' => now(),
-            'updated_at' => now(),
+            'color' => $request->color ?? null,
         ]);
-
-        // Retrieve and return the created category
-        $category = DB::table('categories')->find($id);
 
         return response()->json([
             'message' => 'Kategória bola úspešne vytvorená.',
@@ -70,9 +60,7 @@ class CategoryController extends Controller
      */
     public function show(string $id)
     {
-        $category = DB::table('categories')
-            ->where('id', $id)
-            ->first();
+        $category = Category::find($id);
 
         if (!$category) {
             return response()->json([
@@ -91,10 +79,7 @@ class CategoryController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        // Check if category exists
-        $category = DB::table('categories')
-            ->where('id', $id)
-            ->first();
+        $category = Category::find($id);
 
         if (!$category) {
             return response()->json([
@@ -104,12 +89,7 @@ class CategoryController extends Controller
 
         // Validation - if name is provided and different
         if ($request->has('name') && $request->name !== $category->name) {
-            $exists = DB::table('categories')
-                ->where('name', $request->name)
-                ->where('id', '<>', $id)
-                ->exists();
-
-            if ($exists) {
+            if (Category::where('name', $request->name)->where('id', '<>', $id)->exists()) {
                 return response()->json([
                     'message' => 'Kategória s týmto menom už existuje.'
                 ], Response::HTTP_CONFLICT);
@@ -117,19 +97,14 @@ class CategoryController extends Controller
         }
 
         // Update category
-        DB::table('categories')
-            ->where('id', $id)
-            ->update([
-                'name' => $request->name ?? $category->name,
-                'updated_at' => now(),
-            ]);
-
-        // Retrieve and return updated category
-        $updatedCategory = DB::table('categories')->find($id);
+        $category->update([
+            'name' => $request->name ?? $category->name,
+            'color' => $request->color ?? $category->color,
+        ]);
 
         return response()->json([
             'message' => 'Kategória bola úspešne aktualizovaná.',
-            'category' => $updatedCategory
+            'category' => $category
         ], Response::HTTP_OK);
     }
 
@@ -139,10 +114,7 @@ class CategoryController extends Controller
      */
     public function destroy(string $id)
     {
-        // Check if category exists
-        $category = DB::table('categories')
-            ->where('id', $id)
-            ->first();
+        $category = Category::find($id);
 
         if (!$category) {
             return response()->json([
@@ -151,9 +123,7 @@ class CategoryController extends Controller
         }
 
         // Check if category is used in any notes
-        $usageCount = DB::table('note_category')
-            ->where('category_id', $id)
-            ->count();
+        $usageCount = $category->getNoteCount();
 
         if ($usageCount > 0) {
             return response()->json([
@@ -164,7 +134,7 @@ class CategoryController extends Controller
         }
 
         // Delete category
-        DB::table('categories')->where('id', $id)->delete();
+        $category->delete();
 
         return response()->json([
             'message' => 'Kategória bola úspešne vymazaná.'
@@ -177,18 +147,7 @@ class CategoryController extends Controller
      */
     public function getCategoriesWithCount()
     {
-        $categories = DB::table('categories')
-            ->leftJoin('note_category', 'categories.id', '=', 'note_category.category_id')
-            ->select(
-                'categories.id',
-                'categories.name',
-                DB::raw('COUNT(note_category.id) as notes_count'),
-                'categories.created_at',
-                'categories.updated_at'
-            )
-            ->groupBy('categories.id', 'categories.name', 'categories.created_at', 'categories.updated_at')
-            ->orderBy('categories.name', 'asc')
-            ->get();
+        $categories = Category::withNoteCount();
 
         return response()->json([
             'categories' => $categories
@@ -209,15 +168,12 @@ class CategoryController extends Controller
             ], Response::HTTP_BAD_REQUEST);
         }
 
-        $categories = DB::table('categories')
-            ->where('name', 'LIKE', '%' . $query . '%')
-            ->orderBy('name', 'asc')
-            ->get();
+        $categories = Category::searchByName($query);
 
         return response()->json([
             'search_query' => $query,
             'categories' => $categories,
-            'total' => count($categories)
+            'total' => $categories->count()
         ], Response::HTTP_OK);
     }
 }

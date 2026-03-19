@@ -7,6 +7,16 @@ use Illuminate\Support\Facades\Route;
 // ===== NOTES ENDPOINTS =====
 Route::apiResource('notes', NoteController::class);
 
+// Note Pin/Unpin endpoints
+Route::patch('notes/{id}/pin', [NoteController::class, 'pin']);
+Route::patch('notes/{id}/unpin', [NoteController::class, 'unpin']);
+Route::patch('notes/{id}/toggle-pin', [NoteController::class, 'togglePin']);
+
+// Note Status endpoints
+Route::patch('notes/{id}/publish', [NoteController::class, 'publish']);
+Route::patch('notes/{id}/archive', [NoteController::class, 'archive']);
+Route::patch('notes/{id}/draft', [NoteController::class, 'draft']);
+
 // Custom note endpoints
 Route::get('notes/stats/status', [NoteController::class, 'statsByStatus']);
 Route::patch('notes/actions/archive-old-drafts', [NoteController::class, 'archiveOldDrafts']);
