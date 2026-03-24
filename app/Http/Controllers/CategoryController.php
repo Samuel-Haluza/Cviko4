@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Category;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Validation\Rule;
 
 class CategoryController extends Controller
 {
@@ -25,28 +26,39 @@ class CategoryController extends Controller
     /**
      * Store a newly created category in storage.
      * POST /api/categories
+     * 
+     * Request body:
+     * {
+     *   "name": "string (required, unique)",
+     *   "color": "string (optional, hex color code)"
+     * }
      */
     public function store(Request $request)
     {
-        // Validation
-        if (!$request->has('name') || empty($request->name)) {
-            return response()->json([
-                'message' => 'Pole "name" je povinné.'
-            ], Response::HTTP_BAD_REQUEST);
-        }
-
-        // Check if category already exists
-        if (Category::nameExists($request->name)) {
-            return response()->json([
-                'message' => 'Kategória s týmto menom už existuje.'
-            ], Response::HTTP_CONFLICT);
-        }
-
-        // Create new category
-        $category = Category::create([
-            'name' => $request->name,
-            'color' => $request->color ?? null,
+        // Validácia vstupných dát
+        $validated = $request->validate([
+            'name' => [
+                'required',
+                'string',
+                'min:2',
+                'max:64',
+                Rule::unique('categories', 'name'),
+            ],
+            'color' => [
+                'nullable',
+                'string',
+                'regex:/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/',
+            ],
+        ], [
+            'name.required' => 'Pole "name" je povinné.',
+            'name.min' => 'Názov kategórie musí mať minimálne 2 znaky.',
+            'name.max' => 'Názov kategórie nesmie dlhší ako 64 znakov.',
+            'name.unique' => 'Kategória s týmto menom už existuje.',
+            'color.regex' => 'Farba musí byť v hex formáte (napr. #FF5733 alebo #FFF).',
         ]);
+
+        // Vytvorenie novej kategórie
+        $category = Category::create($validated);
 
         return response()->json([
             'message' => 'Kategória bola úspešne vytvorená.',
@@ -76,9 +88,16 @@ class CategoryController extends Controller
     /**
      * Update the specified category in storage.
      * PUT/PATCH /api/categories/{id}
+     * 
+     * Request body:
+     * {
+     *   "name": "string (optional)",
+     *   "color": "string (optional)"
+     * }
      */
     public function update(Request $request, string $id)
     {
+        // Ziskaj kategóriu
         $category = Category::find($id);
 
         if (!$category) {
@@ -87,24 +106,36 @@ class CategoryController extends Controller
             ], Response::HTTP_NOT_FOUND);
         }
 
-        // Validation - if name is provided and different
-        if ($request->has('name') && $request->name !== $category->name) {
-            if (Category::where('name', $request->name)->where('id', '<>', $id)->exists()) {
-                return response()->json([
-                    'message' => 'Kategória s týmto menom už existuje.'
-                ], Response::HTTP_CONFLICT);
-            }
-        }
-
-        // Update category
-        $category->update([
-            'name' => $request->name ?? $category->name,
-            'color' => $request->color ?? $category->color,
+        // Validácia vstupných dát
+        // Rule::unique()->ignore() umožňuje ponechať pôvodný name
+        $validated = $request->validate([
+            'name' => [
+                'sometimes',
+                'required',
+                'string',
+                'min:2',
+                'max:64',
+                Rule::unique('categories', 'name')->ignore($category->id),
+            ],
+            'color' => [
+                'nullable',
+                'string',
+                'regex:/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/',
+            ],
+        ], [
+            'name.required' => 'Pole "name" je povinné.',
+            'name.min' => 'Názov kategórie musí mať minimálne 2 znaky.',
+            'name.max' => 'Názov kategórie nesmie dlhší ako 64 znakov.',
+            'name.unique' => 'Kategória s týmto menom už existuje.',
+            'color.regex' => 'Farba musí byť v hex formáte (napr. #FF5733 alebo #FFF).',
         ]);
+
+        // Aktualizuj kategóriu
+        $category->update($validated);
 
         return response()->json([
             'message' => 'Kategória bola úspešne aktualizovaná.',
-            'category' => $category
+            'category' => $category->fresh()
         ], Response::HTTP_OK);
     }
 

@@ -2,9 +2,8 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use App\Models\Category;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
 
 class CategorySeeder extends Seeder
 {
@@ -13,15 +12,39 @@ class CategorySeeder extends Seeder
      */
     public function run(): void
     {
-        $now = now();
-        DB::table('categories')->insert([
-            ['name' => 'Práca', 'created_at' => $now, 'updated_at' => $now],
-            ['name' => 'Škola', 'created_at' => $now, 'updated_at' => $now],
-            ['name' => 'Osobné', 'created_at' => $now, 'updated_at' => $now],
-            ['name' => 'Nápady', 'created_at' => $now, 'updated_at' => $now],
-            ['name' => 'TODO', 'created_at' => $now, 'updated_at' => $now],
-            ['name' => 'Finance', 'created_at' => $now, 'updated_at' => $now],
-            ['name' => 'Zdravie', 'created_at' => $now, 'updated_at' => $now],
+        Category::create([
+            'name' => 'Práca',
+            'color' => '#FF6B6B',
+        ]);
+
+        Category::create([
+            'name' => 'Škola',
+            'color' => '#4ECDC4',
+        ]);
+
+        Category::create([
+            'name' => 'Osobné',
+            'color' => '#FFE66D',
+        ]);
+
+        Category::create([
+            'name' => 'Nápady',
+            'color' => '#95E1D3',
+        ]);
+
+        Category::create([
+            'name' => 'TODO',
+            'color' => '#A8E6CF',
+        ]);
+
+        Category::create([
+            'name' => 'Finance',
+            'color' => '#F38181',
+        ]);
+
+        Category::create([
+            'name' => 'Zdravie',
+            'color' => '#AA96DA',
         ]);
     }
 }

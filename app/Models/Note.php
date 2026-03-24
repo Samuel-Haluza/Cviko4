@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Note extends Model
 {
@@ -45,6 +46,24 @@ class Note extends Model
     public function categories(): BelongsToMany
     {
         return $this->belongsToMany(Category::class, 'note_category');
+    }
+
+    /**
+     * Get the tasks for this note.
+     * Jedna poznámka má viac úloh (One-To-Many)
+     */
+    public function tasks(): HasMany
+    {
+        return $this->hasMany(Task::class);
+    }
+
+    /**
+     * Get the comments for this note.
+     * Jedna poznámka má viac komentárov (One-To-Many)
+     */
+    public function comments(): HasMany
+    {
+        return $this->hasMany(Comment::class);
     }
 
     /**

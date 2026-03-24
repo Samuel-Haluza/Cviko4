@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\NoteController;
 use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\TaskController;
 use Illuminate\Support\Facades\Route;
 
 // ===== NOTES ENDPOINTS =====
@@ -24,6 +25,20 @@ Route::get('users/{user}/notes', [NoteController::class, 'userNotesWithCategorie
 Route::get('notes-actions/search', [NoteController::class, 'search']);
 Route::get('notes-actions/pinned', [NoteController::class, 'getPinnedNotes']);
 Route::get('notes-actions/by-status', [NoteController::class, 'getNotesByStatus']);
+
+// ===== TASKS ENDPOINTS (Nested under notes) =====
+Route::get('notes/{noteId}/tasks', [TaskController::class, 'index']);
+Route::post('notes/{noteId}/tasks', [TaskController::class, 'store']);
+Route::get('notes/{noteId}/tasks/{taskId}', [TaskController::class, 'show']);
+Route::put('notes/{noteId}/tasks/{taskId}', [TaskController::class, 'update']);
+Route::patch('notes/{noteId}/tasks/{taskId}', [TaskController::class, 'update']);
+Route::delete('notes/{noteId}/tasks/{taskId}', [TaskController::class, 'destroy']);
+
+// Task custom endpoints
+Route::patch('notes/{noteId}/tasks/{taskId}/toggle', [TaskController::class, 'toggle']);
+Route::patch('notes/{noteId}/tasks/{taskId}/complete', [TaskController::class, 'complete']);
+Route::patch('notes/{noteId}/tasks/{taskId}/incomplete', [TaskController::class, 'incomplete']);
+Route::get('notes/{noteId}/tasks/stats/overview', [TaskController::class, 'stats']);
 
 // ===== CATEGORIES ENDPOINTS =====
 Route::apiResource('categories', CategoryController::class);
