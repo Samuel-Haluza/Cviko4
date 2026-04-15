@@ -1,8 +1,12 @@
 <?php
 
+use App\Http\Middleware\AdminOnly;
+use App\Http\Middleware\PremiumOnly;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Response;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -13,9 +17,18 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
-            'admin' => \App\Http\Middleware\AdminOnly::class,
+            'admin' => AdminOnly::class,
+            'premium' => PremiumOnly::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        $exceptions->render(function (AccessDeniedHttpException $e, $request) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => $e->getMessage() !== 'This action is unauthorized.'
+                        ? $e->getMessage()
+                        : 'Nemate opravnenie na tuto operaciu.',
+                ], Response::HTTP_FORBIDDEN);
+            }
+        });
     })->create();

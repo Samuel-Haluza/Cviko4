@@ -14,15 +14,37 @@ class NoteController extends Controller
      */
     public function index()
     {
+        $this->authorize('viewAny', Note::class);
+
         $notes = Note::query()
             ->select(['id', 'user_id', 'title', 'body', 'status', 'is_pinned', 'created_at'])
             ->with([
                 'user:id,first_name,last_name',
                 'categories:id,name,color',
             ])
+            ->whereIn('status', ['published', 'archived'])
             ->orderByDesc('is_pinned')
             ->orderByDesc('created_at')
-            ->get();
+            ->paginate(5);
+
+        return response()->json([
+            'notes' => $notes,
+        ], Response::HTTP_OK);
+    }
+
+    public function myNotes(Request $request)
+    {
+        $this->authorize('viewForUser', [Note::class, (string) $request->user()->id]);
+
+        $notes = $request->user()
+            ->notes()
+            ->select(['id', 'user_id', 'title', 'body', 'status', 'is_pinned', 'created_at'])
+            ->with([
+                'categories:id,name,color',
+            ])
+            ->orderByDesc('is_pinned')
+            ->orderByDesc('created_at')
+            ->paginate(5);
 
         return response()->json([
             'notes' => $notes,
@@ -34,8 +56,9 @@ class NoteController extends Controller
      */
     public function store(Request $request)
     {
+        $this->authorize('create', Note::class);
+
         $validated = $request->validate([
-            'user_id' => ['required', 'integer', 'exists:users,id'],
             'title' => ['required', 'string', 'min:3', 'max:255'],
             'body' => ['nullable', 'string'],
             'status' => ['sometimes', 'required', 'string', Rule::in(['draft', 'published', 'archived'])],
@@ -44,8 +67,7 @@ class NoteController extends Controller
             'categories.*' => ['integer', 'distinct', 'exists:categories,id'],
         ]);
 
-        $note = Note::create([
-            'user_id' => $validated['user_id'],
+        $note = $request->user()->notes()->create([
             'title' => $validated['title'],
             'body' => $validated['body'] ?? null,
             'status' => $validated['status'] ?? 'draft',
@@ -91,6 +113,8 @@ class NoteController extends Controller
             );
         }
 
+        $this->authorize('view', $note);
+
         return response()->json([
             'note' => $note
         ], Response::HTTP_OK);
@@ -109,6 +133,8 @@ class NoteController extends Controller
                 Response::HTTP_NOT_FOUND
             );
         }
+
+        $this->authorize('update', $note);
 
         $validated = $request->validate([
             'title' => ['required', 'string', 'max:255'],
@@ -145,6 +171,8 @@ class NoteController extends Controller
             return response()->json(['message' => 'Poznámka nenájdená.'], Response::HTTP_NOT_FOUND);
         }
 
+        $this->authorize('delete', $note);
+
         $note->delete(); // soft delete
 
         return response()->json(['message' => 'Poznámka bola úspešne odstránená.'], Response::HTTP_OK);
@@ -166,6 +194,8 @@ class NoteController extends Controller
             return response()->json(['message' => 'Poznámka nenájdená.'], Response::HTTP_NOT_FOUND);
         }
 
+        $this->authorize('pin', $note);
+
         $note->pin();
 
         return response()->json([
@@ -186,6 +216,8 @@ class NoteController extends Controller
             return response()->json(['message' => 'Poznámka nenájdená.'], Response::HTTP_NOT_FOUND);
         }
 
+        $this->authorize('unpin', $note);
+
         $note->unpin();
 
         return response()->json([
@@ -205,6 +237,8 @@ class NoteController extends Controller
         if (!$note) {
             return response()->json(['message' => 'Poznámka nenájdená.'], Response::HTTP_NOT_FOUND);
         }
+
+        $this->authorize('togglePin', $note);
 
         $note->togglePin();
 
@@ -230,6 +264,8 @@ class NoteController extends Controller
             return response()->json(['message' => 'Poznámka nenájdená.'], Response::HTTP_NOT_FOUND);
         }
 
+        $this->authorize('publish', $note);
+
         $note->publish();
 
         return response()->json([
@@ -249,6 +285,8 @@ class NoteController extends Controller
         if (!$note) {
             return response()->json(['message' => 'Poznámka nenájdená.'], Response::HTTP_NOT_FOUND);
         }
+
+        $this->authorize('archive', $note);
 
         $note->archive();
 
@@ -270,6 +308,8 @@ class NoteController extends Controller
             return response()->json(['message' => 'Poznámka nenájdená.'], Response::HTTP_NOT_FOUND);
         }
 
+        $this->authorize('draft', $note);
+
         $note->draft();
 
         return response()->json([
@@ -288,6 +328,8 @@ class NoteController extends Controller
      */
     public function statsByStatus()
     {
+        $this->authorize('viewAny', Note::class);
+
         $stats = Note::getStatsByStatus();
 
         return response()->json(['stats' => $stats], Response::HTTP_OK);
@@ -299,6 +341,8 @@ class NoteController extends Controller
      */
     public function archiveOldDrafts()
     {
+        $this->authorize('bulkArchiveDrafts', Note::class);
+
         $affected = Note::archiveOldDrafts();
 
         return response()->json([
@@ -313,6 +357,8 @@ class NoteController extends Controller
      */
     public function userNotesWithCategories(string $userId)
     {
+        $this->authorize('viewForUser', [Note::class, $userId]);
+
         $notes = Note::getUserNotesWithCategories($userId);
 
         return response()->json(['notes' => $notes], Response::HTTP_OK);
@@ -324,6 +370,8 @@ class NoteController extends Controller
      */
     public function search(Request $request)
     {
+        $this->authorize('viewAny', Note::class);
+
         $query = $request->query('q', '');
 
         if (empty($query)) {
@@ -347,6 +395,8 @@ class NoteController extends Controller
      */
     public function getPinnedNotes()
     {
+        $this->authorize('viewAny', Note::class);
+
         $notes = Note::getPinned();
 
         return response()->json([
@@ -362,6 +412,8 @@ class NoteController extends Controller
     public function getNotesByStatus(Request $request)
     {
         $status = $request->query('status', 'published');
+
+        $this->authorize('viewByStatus', [Note::class, $status]);
 
         if (!in_array($status, ['draft', 'archived', 'published'])) {
             return response()->json([

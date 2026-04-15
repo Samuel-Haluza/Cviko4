@@ -23,6 +23,8 @@ class TaskController extends Controller
             ], Response::HTTP_NOT_FOUND);
         }
 
+        $this->authorize('viewForNote', [Task::class, $note]);
+
         // Používame relationship: $note->tasks()
         $tasks = $note->tasks()
             ->orderBy('is_completed', 'asc')
@@ -57,6 +59,8 @@ class TaskController extends Controller
                 'message' => 'Poznámka nenájdená.'
             ], Response::HTTP_NOT_FOUND);
         }
+
+        $this->authorize('create', [Task::class, $note]);
 
         // Validácia vstupných dát
         $validated = $request->validate([
@@ -108,6 +112,8 @@ class TaskController extends Controller
             ], Response::HTTP_NOT_FOUND);
         }
 
+        $this->authorize('view', $task);
+
         return response()->json([
             'task' => $task,
         ], Response::HTTP_OK);
@@ -143,6 +149,8 @@ class TaskController extends Controller
                 'message' => 'Úloha nenájdená.'
             ], Response::HTTP_NOT_FOUND);
         }
+
+        $this->authorize('update', $task);
 
         // Validácia vstupných dát
         $validated = $request->validate([
@@ -189,6 +197,8 @@ class TaskController extends Controller
             ], Response::HTTP_NOT_FOUND);
         }
 
+        $this->authorize('delete', $task);
+
         // Soft delete
         $task->delete();
 
@@ -219,6 +229,8 @@ class TaskController extends Controller
                 'message' => 'Úloha nenájdená.'
             ], Response::HTTP_NOT_FOUND);
         }
+
+        $this->authorize('toggle', $task);
 
         $task->update([
             'is_completed' => !$task->is_completed,
@@ -253,6 +265,8 @@ class TaskController extends Controller
             ], Response::HTTP_NOT_FOUND);
         }
 
+        $this->authorize('complete', $task);
+
         $task->update([
             'is_completed' => true,
         ]);
@@ -286,6 +300,8 @@ class TaskController extends Controller
             ], Response::HTTP_NOT_FOUND);
         }
 
+        $this->authorize('incomplete', $task);
+
         $task->update([
             'is_completed' => false,
         ]);
@@ -309,6 +325,8 @@ class TaskController extends Controller
                 'message' => 'Poznámka nenájdená.'
             ], Response::HTTP_NOT_FOUND);
         }
+
+        $this->authorize('viewForNote', [Task::class, $note]);
 
         // Počítaj úlohy cez relationship
         $total = $note->tasks()->count();

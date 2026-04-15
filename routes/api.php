@@ -4,6 +4,8 @@ use App\Http\Controllers\NoteController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CommentController;
+use App\Http\Controllers\AttachmentController;
 use Illuminate\Support\Facades\Route;
 
 
@@ -17,9 +19,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('auth/change-password', [AuthController::class, 'changePassword']);
     Route::get('auth/profile', [AuthController::class, 'profile']);
     Route::patch('auth/profile', [AuthController::class, 'updateProfile']);
+    Route::post('auth/profile-photo', [AuthController::class, 'storeProfilePhoto']);
+    Route::delete('auth/profile-photo', [AuthController::class, 'destroyProfilePhoto']);
 });
 
 Route::apiResource('notes', NoteController::class);
+Route::get('notes/my/own', [NoteController::class, 'myNotes']);
 
 Route::patch('notes/{id}/pin', [NoteController::class, 'pin']);
 Route::patch('notes/{id}/unpin', [NoteController::class, 'unpin']);
@@ -48,6 +53,26 @@ Route::patch('notes/{noteId}/tasks/{taskId}/toggle', [TaskController::class, 'to
 Route::patch('notes/{noteId}/tasks/{taskId}/complete', [TaskController::class, 'complete']);
 Route::patch('notes/{noteId}/tasks/{taskId}/incomplete', [TaskController::class, 'incomplete']);
 Route::get('notes/{noteId}/tasks/stats/overview', [TaskController::class, 'stats']);
+
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('notes/{note}/attachments', [AttachmentController::class, 'index']);
+    Route::post('notes/{note}/attachments', [AttachmentController::class, 'store'])->middleware('premium');
+    Route::delete('attachments/{attachment}', [AttachmentController::class, 'destroy']);
+    Route::get('attachments/{attachment}/link', [AttachmentController::class, 'link']);
+});
+
+Route::get('attachments/{attachment}/download', [AttachmentController::class, 'download'])
+    ->middleware('signed')
+    ->name('attachments.download');
+
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('notes/{note}/comments', [CommentController::class, 'indexForNote']);
+    Route::post('notes/{note}/comments', [CommentController::class, 'storeForNote']);
+    Route::get('notes/{note}/tasks/{task}/comments', [CommentController::class, 'indexForTask']);
+    Route::post('notes/{note}/tasks/{task}/comments', [CommentController::class, 'storeForTask']);
+    Route::patch('comments/{comment}', [CommentController::class, 'update']);
+    Route::delete('comments/{comment}', [CommentController::class, 'destroy']);
+});
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('categories', [CategoryController::class, 'index']);

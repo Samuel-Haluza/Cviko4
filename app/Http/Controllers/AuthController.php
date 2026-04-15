@@ -5,9 +5,14 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rules\File;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 class AuthController extends Controller
 {
@@ -72,9 +77,12 @@ class AuthController extends Controller
 
     public function profile(Request $request)
     {
+        $user = $request->user()->load('profilePhoto');
+
         return response()->json([
-            'user' => $request->user(),
-            'active_sessions' => $request->user()->tokens()->count(),
+            'user' => $user,
+            'profile_photo_url' => $user->profilePhoto?->publicUrl(),
+            'active_sessions' => $user->tokens()->count(),
         ], Response::HTTP_OK);
     }
 
@@ -128,6 +136,83 @@ class AuthController extends Controller
         return response()->json([
             'message' => 'Profil bol uspesne aktualizovany.',
             'user' => $user,
+        ], Response::HTTP_OK);
+    }
+
+    public function storeProfilePhoto(Request $request)
+    {
+        $validated = $request->validate([
+            'file' => ['required', File::image()->max('3mb')],
+        ]);
+
+        $user = $request->user();
+        $file = $validated['file'];
+
+        $disk = 'public';
+        $directory = 'profile_photos/users/' . $user->id;
+        $path = null;
+
+        try {
+            DB::beginTransaction();
+
+            $oldProfilePhoto = $user->profilePhoto;
+
+            $path = $file->store($directory, $disk);
+
+            $newPhoto = $user->profilePhoto()->create([
+                'public_id' => (string) Str::ulid(),
+                'collection' => 'profile_photo',
+                'visibility' => 'public',
+                'disk' => $disk,
+                'path' => $path,
+                'stored_name' => basename($path),
+                'original_name' => $file->getClientOriginalName(),
+                'mime_type' => (string) $file->getMimeType(),
+                'size' => (int) $file->getSize(),
+            ]);
+
+            if ($oldProfilePhoto) {
+                Storage::disk($oldProfilePhoto->disk)->delete($oldProfilePhoto->path);
+                $oldProfilePhoto->delete();
+            }
+
+            DB::commit();
+        } catch (Throwable $e) {
+            DB::rollBack();
+
+            if ($path) {
+                Storage::disk($disk)->delete($path);
+            }
+
+            return response()->json([
+                'message' => 'Profilovu fotku sa nepodarilo ulozit.',
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+
+        return response()->json([
+            'message' => 'Profilova fotka bola ulozena.',
+            'profile_photo' => $newPhoto,
+            'profile_photo_url' => $newPhoto->publicUrl(),
+        ], Response::HTTP_CREATED);
+    }
+
+    public function destroyProfilePhoto(Request $request)
+    {
+        $attachment = $request->user()->profilePhoto;
+
+        if (!$attachment) {
+            return response()->json([
+                'message' => 'Profilova fotka neexistuje.',
+            ], Response::HTTP_NOT_FOUND);
+        }
+
+        DB::transaction(function () use ($attachment) {
+            Storage::disk($attachment->disk)->delete($attachment->path);
+            $attachment->delete();
+        });
+
+        return response()->json([
+            'message' => 'Profilova fotka bola odstranena.',
         ], Response::HTTP_OK);
     }
 }
